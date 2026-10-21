@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Typing Arena - Free Match Auto Join Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&family=Rajdhani:wght@500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Rajdhani', 'Fira Code', sans-serif; background-color: #0d1117; color: white; }
+        .neon-blue { text-shadow: 0 0 8px rgba(56, 189, 248, 0.8), 0 0 20px rgba(56, 189, 248, 0.5); }
+        .progress-transition { transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .bg-grid { background-image: linear-gradient(to right,#80808012 1px,transparent 1px),linear-gradient(to bottom,#80808012 1px,transparent 1px); background-size: 24px 24px; }
+        .countdown-anim { animation: zoomIn 0.5s ease-out; }
+        @keyframes zoomIn {
+            0% { transform: scale(2); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex items-center justify-center overflow-hidden select-none bg-grid">
+
+    <!-- メインメニュー画面 -->
+    <div id="menu-screen" class="w-full max-w-md p-8 bg-gray-900/90 border border-gray-800 rounded-2xl shadow-2xl backdrop-blur-md text-center z-10">
+        <h1 class="text-5xl font-black tracking-wider mb-1 bg-gradient-to-r from-blue-400 to-red-500 bg-clip-text text-transparent">TYPING ARENA</h1>
+        <p class="text-gray-400 text-xs mb-6 font-mono">Online Multiplayer Battle</p>
+        
+        <div class="space-y-4">
+            <div>
+                <label class="block text-left text-xs font-mono text-gray-400 mb-1">PLAYER NAME</label>
+                <input type="text" id="player-name-input" placeholder="名前を入力 (任意)" maxlength="12" class="w-full px-4 py-3 bg-gray-950 border border-gray-800 rounded-lg text-center font-mono text-lg focus:border-blue-500 outline-none">
+            </div>
+
+            <div class="space-y-2 pt-2">
+                <button id="mode-1v1-btn" class="w-full py-3 bg-blue-600 hover:bg-blue-500 font-bold rounded-lg transition-all shadow-lg shadow-blue-500/20 text-sm">
+                    ⚔️ 1vs1 対戦モード
+                </button>
+                <button id="mode-party-btn" class="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 font-black rounded-lg transition-all shadow-lg shadow-pink-500/20 text-sm tracking-wider">
+                    🎉 パーティモード
+                </button>
+                <button id="local-btn" class="w-full py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold rounded-lg text-xs transition-all border border-gray-700">
+                    🤖 NPCと練習 (1vs1)
+                </button>
+            </div>
+        </div>
+        <div id="status-text" class="mt-6 text-xs text-gray-400 font-mono min-h-[20px]">モードを選択してください</div>
+    </div>
+
+    <!-- 1vs1 モード選択ダイアログ -->
+    <div id="1v1-submodal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+        <div class="bg-gray-900 border-2 border-blue-500/50 p-6 rounded-2xl max-w-sm w-full text-center shadow-2xl">
+            <h3 class="text-2xl font-black mb-1 text-blue-400">1vs1 MODE</h3>
+            <p class="text-xs text-gray-400 mb-6 font-mono">対戦形式を選択してください</p>
+            <div class="space-y-3">
+                <button onclick="select1v1Mode('code')" class="w-full py-3 bg-blue-600 hover:bg-blue-500 font-bold rounded-lg text-xs">🔑 コード入力対戦</button>
+                <button onclick="select1v1Mode('free')" class="w-full py-3 bg-purple-600 hover:bg-purple-500 font-bold rounded-lg text-xs">⚡ フリーマッチング (ランダム)</button>
+            </div>
+            <button onclick="resetToMenu()" class="mt-6 text-xs text-gray-500 hover:text-gray-300 font-mono">キャンセル</button>
+        </div>
+    </div>
+
+    <!-- パーティモード選択ダイアログ -->
+    <div id="party-submodal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+        <div class="bg-gray-900 border-2 border-pink-500/50 p-6 rounded-2xl max-w-sm w-full text-center shadow-2xl">
+            <h3 class="text-2xl font-black mb-1 text-pink-400">PARTY MODE</h3>
+            <p class="text-xs text-gray-400 mb-6 font-mono">対戦形式を選択してください</p>
+            <div class="space-y-3">
+                <button onclick="startPartyMode('code')" class="w-full py-3 bg-blue-600 hover:bg-blue-500 font-bold rounded-lg text-xs">🔑 コードマッチング</button>
+                <button onclick="startPartyMode('free')" class="w-full py-3 bg-purple-600 hover:bg-purple-500 font-bold rounded-lg text-xs">⚡ フリーマッチング (ランダム)</button>
+                <button onclick="startPartyMode('cp')" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 font-bold rounded-lg text-xs">🤖 CP対戦 (全員CP)</button>
+            </div>
+            <button onclick="resetToMenu()" class="mt-6 text-xs text-gray-500 hover:text-gray-300 font-mono">キャンセル</button>
+        </div>
+    </div>
+
+    <!-- パーティ：役割選択ダイアログ (コード/フリー共通) -->
+    <div id="party-role-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+        <div class="bg-gray-900 border-2 border-pink-500/50 p-6 rounded-2xl max-w-sm w-full text-center shadow-2xl">
+            <h3 id="party-role-title" class="text-2xl font-black mb-1 text-pink-400">MATCHING</h3>
+            <p class="text-xs text-gray-400 mb-6 font-mono">項目を選択してください</p>
+            <div class="space-y-3">
+                <button onclick="selectPartyRole('create')" class="w-full py-3 bg-pink-600 hover:bg-pink-500 font-bold rounded-lg text-xs">🏠 部屋を作る</button>
+                <button onclick="selectPartyRole('join')" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 font-bold rounded-lg text-xs">🚪 部屋に参加する</button>
+            </div>
+            <button onclick="resetToMenu()" class="mt-6 text-xs text-gray-500 hover:text-gray-300 font-mono">キャンセル</button>
+        </div>
+    </div>
+
+    <!-- コード入力モーダル -->
+    <div id="code-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+        <div class="bg-gray-900 border-2 border-blue-500/50 p-6 rounded-2xl max-w-sm w-full text-center shadow-2xl">
+            <h3 id="code-modal-title" class="text-2xl font-bold mb-2 text-blue-400">ENTER ROOM CODE</h3>
+            <p id="code-modal-desc" class="text-xs text-gray-400 mb-4 font-mono">合言葉を入力してください</p>
+            <input type="text" id="room-code-input" placeholder="例: 1234" class="w-full px-4 py-3 bg-gray-950 border border-gray-800 rounded-lg text-center font-mono text-xl tracking-widest focus:border-blue-500 outline-none uppercase mb-4">
+            <div class="flex gap-2">
+                <button onclick="resetToMenu()" class="w-1/2 py-2 bg-gray-800 text-gray-300 font-bold rounded-lg text-sm">キャンセル</button>
+                <button id="code-start-btn" class="w-1/2 py-2 bg-blue-600 hover:bg-blue-500 font-bold rounded-lg text-sm">接続</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- パーティ待機タイマーモーダル -->
+    <div id="party-match-wait-modal" class="hidden fixed inset-0 z-[90] flex items-center justify-center bg-black/85 backdrop-blur-md p-4">
+        <div class="bg-gray-900 border-2 border-pink-500 p-8 rounded-3xl max-w-md w-full text-center shadow-2xl">
+            <h3 class="text-2xl font-bold text-pink-400 mb-2">PARTY ROOM</h3>
+            <p id="party-room-code-badge" class="text-xs text-yellow-400 font-mono mb-4">ROOM CODE: ----</p>
+            <div class="text-5xl font-black text-yellow-400 font-mono mb-6" id="party-queue-timer">01:30</div>
+            
+            <div class="bg-gray-950 border border-gray-800 rounded-2xl p-4 mb-4">
+                <div class="text-xs text-gray-400 mb-2 flex justify-between">
+                    <span>CURRENT PLAYERS</span>
+                    <span id="party-count-text" class="text-pink-400 font-bold">1人</span>
+                </div>
+                <div id="party-member-list" class="space-y-2 text-left text-xs font-mono"></div>
+            </div>
+
+            <button onclick="resetToMenu()" class="w-full py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold rounded-xl text-xs">退出・キャンセル</button>
+        </div>
+    </div>
+
+    <!-- NPC難易度モーダル -->
+    <div id="difficulty-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+        <div class="bg-gray-900 border-2 border-sky-500/50 p-8 rounded-3xl max-w-md w-full text-center">
+            <h2 class="text-3xl font-bold mb-2 text-sky-400">SELECT DIFFICULTY</h2>
+            <p class="text-xs font-mono text-gray-400 mb-6">NPCの難易度を選択してください</p>
+            <div class="space-y-3">
+                <button onclick="selectDifficulty('easy')" class="w-full py-3 bg-green-600/20 hover:bg-green-600/40 border border-green-500 text-green-400 font-bold rounded-xl">簡単 (EASY)</button>
+                <button onclick="selectDifficulty('normal')" class="w-full py-3 bg-blue-600/20 hover:bg-blue-600/40 border border-blue-500 text-blue-400 font-bold rounded-xl">普通 (NORMAL)</button>
+                <button onclick="selectDifficulty('hard')" class="w-full py-3 bg-red-600/20 hover:bg-red-600/40 border border-red-500 text-red-400 font-bold rounded-xl">難しい (HARD)</button>
+            </div>
+            <button onclick="resetToMenu()" class="mt-6 text-xs text-gray-500 hover:text-gray-300 font-mono">戻る</button>
+        </div>
+    </div>
+
+    <!-- ルールモーダル -->
+    <div id="rule-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+        <div class="bg-gray-900 border-2 border-blue-500/50 p-8 rounded-3xl max-w-lg w-full text-center">
+            <h2 class="text-3xl font-bold mb-4 text-blue-400">BATTLE RULE</h2>
+            <p id="rule-desc-text" class="text-gray-300 text-sm mb-6">正解するとバーまたは円グラフのシェアが増加します！</p>
+            <button id="ready-btn" class="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl text-lg">READY (準備完了)</button>
+            <p id="waiting-msg" class="hidden mt-4 text-center text-yellow-500 animate-pulse font-mono text-sm">対戦相手の準備完了を待っています...</p>
+        </div>
+    </div>
+
+    <!-- カウントダウン -->
+    <div id="countdown-overlay" class="hidden fixed inset-0 z-[60] flex items-center justify-center pointer-events-none bg-black/60">
+        <span id="countdown-text" class="text-9xl font-black italic text-yellow-400"></span>
+    </div>
+
+    <!-- 1vs1 ゲーム画面 -->
+    <div id="game-screen" class="hidden w-full max-w-5xl px-6 flex flex-col items-center gap-8 z-10">
+        <div class="text-center font-mono">
+            <span class="text-xs text-gray-500 tracking-widest block">TIME REMAINING</span>
+            <span id="timer-display" class="text-4xl font-black text-yellow-400 neon-yellow">04:00</span>
+        </div>
+
+        <div class="w-full relative">
+            <div class="flex justify-between text-xl font-bold mb-2 tracking-wider">
+                <span id="label-player-name" class="text-sky-400">PLAYER</span>
+                <span id="label-enemy-name" class="text-red-500">ENEMY</span>
+            </div>
+            <div class="w-full h-8 bg-gray-950 border-2 border-gray-800 rounded-full overflow-hidden flex relative">
+                <div id="player-bar" class="progress-transition bg-gradient-to-r from-sky-500 to-blue-500 h-full w-1/2"></div>
+                <div id="enemy-bar" class="progress-transition bg-gradient-to-r from-red-500 to-rose-600 h-full w-1/2"></div>
+                <div class="absolute left-1/2 top-0 bottom-0 w-[2px] bg-white/30 transform -translate-x-1/2"></div>
+            </div>
+        </div>
+
+        <div class="w-full grid grid-cols-1 md:grid-cols-5 gap-6 items-stretch">
+            <div class="md:col-span-3 bg-gray-900/60 border-2 border-sky-500/50 rounded-2xl p-8 flex flex-col justify-between min-h-[320px]">
+                <div id="card-player-title" class="text-xs font-bold text-sky-400">PLAYER</div>
+                <div id="word-display" class="text-5xl md:text-6xl font-bold font-mono text-center my-8"></div>
+                <div class="text-[10px] text-center text-gray-600 font-mono">TYPE THE WORD ABOVE</div>
+            </div>
+            <div class="md:col-span-2 bg-gray-900/40 border border-red-500/30 rounded-2xl p-6 flex flex-col justify-between min-h-[320px]">
+                <div id="card-enemy-title" class="text-xs font-bold text-red-500">ENEMY</div>
+                <div id="enemy-word-display" class="text-3xl md:text-4xl font-bold font-mono text-center text-gray-500 my-8"></div>
+                <div class="text-[10px] text-center text-gray-600 font-mono">REAL-TIME ENEMY VIEW</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- パーティゲーム画面 -->
+    <div id="party-game-screen" class="hidden w-full max-w-6xl h-screen p-6 flex flex-col justify-between z-10">
+        <div class="w-full flex justify-between items-start">
+            <div class="flex items-center gap-4">
+                <div class="relative w-36 h-36 border-4 border-black rounded-full overflow-hidden bg-black shadow-2xl">
+                    <svg viewBox="0 0 32 32" class="w-full h-full transform -rotate-90" id="party-pie-svg"></svg>
+                </div>
+                <div class="text-xs font-mono space-y-1" id="pie-legend"></div>
+            </div>
+
+            <div class="bg-black/90 border-4 border-black px-8 py-3 rounded-xl text-center">
+                <span class="text-[10px] text-gray-400 block font-mono">TIMER</span>
+                <span id="party-timer-display" class="text-4xl font-black text-yellow-400 font-mono">04:00</span>
+            </div>
+        </div>
+
+        <div class="w-full grid grid-cols-12 gap-4 items-end mb-2">
+            <div class="col-span-7 bg-gray-900/80 border-4 border-blue-600 rounded-2xl p-6 h-80 flex flex-col justify-between">
+                <div class="flex justify-between items-center">
+                    <span id="party-p1-name" class="text-sm font-bold text-blue-400 font-mono">PLAYER (YOU)</span>
+                    <span id="party-p1-share" class="text-sm font-black text-blue-400 font-mono">16.6%</span>
+                </div>
+                <div id="party-word-display" class="text-4xl md:text-5xl font-bold font-mono text-center my-auto"></div>
+                <div class="text-[10px] text-center text-gray-600 font-mono">TYPE THE WORD ABOVE</div>
+            </div>
+
+            <div class="col-span-5 grid grid-cols-2 gap-3">
+                <div class="bg-gray-900/60 border-4 border-red-600 rounded-xl p-3 h-24 flex flex-col justify-between">
+                    <div class="flex justify-between text-[10px] font-mono"><span id="party-p2-name" class="text-red-400 truncate">P2</span><span id="party-p2-share" class="text-red-400 font-bold">16.6%</span></div>
+                    <div id="party-p2-word" class="text-xs font-mono text-center text-gray-400 truncate">----</div>
+                </div>
+                <div class="bg-gray-900/60 border-4 border-yellow-400 rounded-xl p-3 h-24 flex flex-col justify-between">
+                    <div class="flex justify-between text-[10px] font-mono"><span id="party-p3-name" class="text-yellow-400 truncate">P3</span><span id="party-p3-share" class="text-yellow-400 font-bold">16.6%</span></div>
+                    <div id="party-p3-word" class="text-xs font-mono text-center text-gray-400 truncate">----</div>
+                </div>
+                <div class="col-span-2 mx-auto w-3/4 bg-gray-900/60 border-4 border-lime-400 rounded-xl p-3 h-24 flex flex-col justify-between">
+                    <div class="flex justify-between text-[10px] font-mono"><span id="party-p4-name" class="text-lime-400 truncate">P4</span><span id="party-p4-share" class="text-lime-400 font-bold">16.6%</span></div>
+                    <div id="party-p4-word" class="text-xs font-mono text-center text-gray-400 truncate">----</div>
+                </div>
+                <div class="bg-gray-900/60 border-4 border-indigo-600 rounded-xl p-3 h-24 flex flex-col justify-between">
+                    <div class="flex justify-between text-[10px] font-mono"><span id="party-p5-name" class="text-indigo-400 truncate">P5</span><span id="party-p5-share" class="text-indigo-400 font-bold">16.6%</span></div>
+                    <div id="party-p5-word" class="text-xs font-mono text-center text-gray-400 truncate">----</div>
+                </div>
+                <div class="bg-gray-900/60 border-4 border-purple-600 rounded-xl p-3 h-24 flex flex-col justify-between">
+                    <div class="flex justify-between text-[10px] font-mono"><span id="party-p6-name" class="text-purple-400 truncate">P6</span><span id="party-p6-share" class="text-purple-400 font-bold">16.6%</span></div>
+                    <div id="party-p6-word" class="text-xs font-mono text-center text-gray-400 truncate">----</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- リザルト画面 -->
+    <div id="result-modal" class="hidden fixed inset-0 z-[80] flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+        <div id="result-card" class="bg-gray-900/90 border-2 border-gray-700 p-8 rounded-3xl max-w-md w-full text-center">
+            <h2 id="result-title" class="text-6xl font-black mb-2"></h2>
+            <p id="result-desc" class="text-gray-400 mb-6 font-mono text-sm"></p>
+            <button onclick="resetToMenu()" class="w-full py-4 bg-white text-black font-black rounded-xl">タイトルに戻る</button>
+        </div>
+    </div>
+
+    <script>
+        const MIN_PARTY_MEMBERS = 1;
+        const MAX_PARTY_MEMBERS = 6;
+        const PARTY_DAMAGE_GAIN = 5;
+
+        const WORD_LIST = ["apple", "orange", "banana", "melon", "lemon", "peach", "cherry", "tomato", "potato", "carrot", "school", "teacher", "student", "class", "lesson", "pencil", "notebook", "textbook", "library", "desk", "soccer", "baseball", "tennis", "basketball", "running", "swimming", "sports", "game", "guitar", "piano"];
+        const PLAYER_COLORS = ["#2563eb", "#dc2626", "#eab308", "#a3e635", "#4f46e5", "#9333ea"];
+
+        let state = {
+            gameMode: '1vs1', peer: null, conn: null, role: 'host',
+            myNickname: "YOU", playerName: "PLAYER", enemyName: "ENEMY",
+            word: "", typedIdx: 0, enemyWord: "", enemyTypedIdx: 0,
+            score: 50, isPlaying: false, isReady: false, enemyReady: false,
+            npcInterval: null, npcDifficulty: 'normal',
+            
+            partySubMode: 'code', partyRole: 'create',
+            isHost: false, roomCode: "", partyPlayers: [],
+            partyQueueTimer: null, partyQueueTimeLeft: 90
+        };
+
+        let nameInput, statusText, wordDisplay, enemyWordDisplay, countdownOverlay, countdownText, readyBtn, waitingMsg, sRule, sGame, sPartyGame, resultModal;
+
+        window.addEventListener('DOMContentLoaded', () => {
+            nameInput = document.getElementById('player-name-input');
+            statusText = document.getElementById('status-text');
+            wordDisplay = document.getElementById('word-display');
+            enemyWordDisplay = document.getElementById('enemy-word-display');
+            countdownOverlay = document.getElementById('countdown-overlay');
+            countdownText = document.getElementById('countdown-text');
+            readyBtn = document.getElementById('ready-btn');
+            waitingMsg = document.getElementById('waiting-msg');
+            sRule = document.getElementById('rule-modal');
+            sGame = document.getElementById('game-screen');
+            sPartyGame = document.getElementById('party-game-screen');
+            resultModal = document.getElementById('result-modal');
+
+            document.getElementById('mode-1v1-btn').onclick = () => {
+                state.gameMode = '1vs1';
+                state.myNickname = nameInput.value.trim() || "YOU";
+                state.playerName = state.myNickname;
+                document.getElementById('1v1-submodal').classList.remove('hidden');
+            };
+
+            document.getElementById('mode-party-btn').onclick = () => {
+                state.gameMode = 'party';
+                state.myNickname = nameInput.value.trim() || "YOU";
+                document.getElementById('party-submodal').classList.remove('hidden');
+            };
+
+            document.getElementById('local-btn').onclick = () => {
+                state.gameMode = '1vs1';
+                state.role = 'local';
+                state.playerName = nameInput.value.trim() || "YOU";
+                document.getElementById('difficulty-modal').classList.remove('hidden');
+            };
+
+            document.getElementById('code-start-btn').onclick = () => {
+                const code = document.getElementById('room-code-input').value.trim().toUpperCase();
+                if(!code) return alert("部屋コードを入力してください");
+                document.getElementById('code-modal').classList.add('hidden');
+
+                if (state.gameMode === '1vs1') {
+                    init1v1CodeMatching(code);
+                } else {
+                    state.roomCode = code;
+                    if (state.partyRole === 'create') {
+                        createPartyRoom(code);
+                    } else {
+                        joinPartyRoom(code);
+                    }
+                }
+            };
+
+            readyBtn.onclick = () => {
+                state.isReady = true;
+                readyBtn.classList.add('hidden');
+                waitingMsg.classList.remove('hidden');
+                if (state.role !== 'local') sendData({ type: 'ready' });
+                checkStartCondition();
+            };
+        });
+
+        function select1v1Mode(type) {
+            document.getElementById('1v1-submodal').classList.add('hidden');
+            if (type === 'code') {
+                document.getElementById('code-modal-title').textContent = "ENTER ROOM CODE";
+                document.getElementById('code-modal').classList.remove('hidden');
+            } else if (type === 'free') {
+                init1v1FreeMatching();
+            }
+        }
+
+        function startPartyMode(type) {
+            document.getElementById('party-submodal').classList.add('hidden');
+            state.partySubMode = type;
+
+            if (type === 'cp') {
+                state.isHost = true;
+                setupPartyWithCPs([{ id: 'p1', name: state.myNickname, isCP: false }]);
+                showRules();
+            } else if (type === 'code' || type === 'free') {
+                document.getElementById('party-role-title').textContent = type === 'code' ? "CODE MATCHING" : "FREE MATCHING";
+                document.getElementById('party-role-modal').classList.remove('hidden');
+            }
+        }
+
+        function selectPartyRole(role) {
+            document.getElementById('party-role-modal').classList.add('hidden');
+            state.partyRole = role;
+
+            if (state.partySubMode === 'code') {
+                document.getElementById('code-modal').classList.remove('hidden');
+            } else if (state.partySubMode === 'free') {
+                if (role === 'create') {
+                    // フリーマッチ用即時作成
+                    const randomFreeCode = "FREE-" + Math.floor(Math.random() * 100);
+                    createPartyRoom(randomFreeCode);
+                } else {
+                    // フリーマッチ用自動ランダム入室試行
+                    autoJoinFreePartyRoom();
+                }
+            }
+        }
+
+        // --- 1vs1 P2P通信 ---
+        function init1v1FreeMatching() {
+            statusText.textContent = "対戦相手を探しています...";
+            setup1v1PeerAndConnect("TYPING-1V1-FREE-MATCH");
+        }
+
+        function init1v1CodeMatching(code) {
+            statusText.textContent = `部屋コード [${code}] に接続中...`;
+            setup1v1PeerAndConnect(`TYPING-1V1-CODE-${code}`);
+        }
+
+        function setup1v1PeerAndConnect(targetRoomId) {
+            if (state.peer) state.peer.destroy();
+            state.role = 'online';
+            state.peer = new Peer();
+
+            state.peer.on('open', () => {
+                const conn = state.peer.connect(targetRoomId);
+                let connected = false;
+
+                conn.on('open', () => {
+                    connected = true;
+                    state.conn = conn;
+                    setup1v1Connection();
+                });
+
+                setTimeout(() => {
+                    if (!connected) {
+                        conn.close();
+                        if (state.peer) state.peer.destroy();
+
+                        state.peer = new Peer(targetRoomId);
+                        state.peer.on('open', () => {
+                            statusText.textContent = "対戦相手の参戦を待っています...";
+                        });
+
+                        state.peer.on('connection', (incomingConn) => {
+                            state.conn = incomingConn;
+                            setup1v1Connection();
+                        });
+                    }
+                }, 1200);
+            });
+        }
+
+        function setup1v1Connection() {
+            if (!state.conn) return;
+
+            sendData({ type: 'init_info', name: state.playerName });
+
+            state.conn.on('data', (data) => handle1v1Data(data));
+            state.conn.on('close', () => {
+                alert("対戦相手との通信が切断されました。");
+                resetToMenu();
+            });
+        }
+
+        function handle1v1Data(data) {
+            if (data.type === 'init_info') {
+                state.enemyName = data.name || "ENEMY";
+                applyNamesUI();
+                sendData({ type: 'init_info_reply', name: state.playerName });
+                showRules();
+            } else if (data.type === 'init_info_reply') {
+                state.enemyName = data.name || "ENEMY";
+                applyNamesUI();
+                showRules();
+            } else if (data.type === 'ready') {
+                state.enemyReady = true;
+                checkStartCondition();
+            } else if (data.type === 'progress') {
+                if (data.word) state.enemyWord = data.word;
+                state.enemyTypedIdx = data.typedIdx;
+                renderEnemyWord();
+            } else if (data.type === 'score_sync') {
+                state.score = 100 - data.score;
+                updateProgressBar();
+                if (state.score >= 100) triggerGameEnd('victory');
+                else if (state.score <= 0) triggerGameEnd('defeat');
+            }
+        }
+
+        // --- パーティモード P2P ---
+        function createPartyRoom(code) {
+            if (state.peer) state.peer.destroy();
+            state.isHost = true;
+            statusText.textContent = "部屋を作成中...";
+
+            const roomPeerId = `TYPING-ARENA-PARTY-${code}`;
+            state.peer = new Peer(roomPeerId);
+
+            state.peer.on('open', (id) => {
+                document.getElementById('party-room-code-badge').textContent = `ROOM: ${code}`;
+                startPartyQueueTimer();
+                state.partyPlayers = [{ id: id, name: state.myNickname }];
+                updatePartyQueueUI();
+                statusText.textContent = "部屋を作成しました。";
+            });
+
+            state.peer.on('connection', (conn) => {
+                conn.on('open', () => {
+                    conn.on('data', (data) => {
+                        if (data.type === 'join_request') {
+                            if (state.partyPlayers.length >= MAX_PARTY_MEMBERS) {
+                                conn.send({ type: 'reject', reason: '満員' });
+                                return;
+                            }
+                            state.partyPlayers.push({ id: conn.peer, name: data.name });
+                            updatePartyQueueUI();
+                            broadcastPartyPlayers();
+                        }
+                    });
+                });
+            });
+
+            state.peer.on('error', (err) => {
+                alert("部屋の作成に失敗しました。");
+                resetToMenu();
+            });
+        }
+
+        function joinPartyRoom(code) {
+            if (state.peer) state.peer.destroy();
+            state.isHost = false;
+            statusText.textContent = "部屋を検索中...";
+
+            state.peer = new Peer();
+
+            state.peer.on('open', () => {
+                const targetRoomPeerId = `TYPING-ARENA-PARTY-${code}`;
+                const conn = state.peer.connect(targetRoomPeerId);
+                state.conn = conn;
+
+                const timeoutTimer = setTimeout(() => {
+                    if (!conn.open) {
+                        alert("該当する部屋が見つかりませんでした。");
+                        resetToMenu();
+                    }
+                }, 4000);
+
+                conn.on('open', () => {
+                    clearTimeout(timeoutTimer);
+                    document.getElementById('party-room-code-badge').textContent = `ROOM: ${code}`;
+                    startPartyQueueTimer();
+                    conn.send({ type: 'join_request', name: state.myNickname });
+                });
+
+                conn.on('data', (data) => {
+                    if (data.type === 'update_players') {
+                        state.partyPlayers = data.players;
+                        updatePartyQueueUI();
+                    } else if (data.type === 'start_countdown') {
+                        document.getElementById('party-match-wait-modal').classList.add('hidden');
+                        showRules();
+                    } else if (data.type === 'sync_countdown_tick') {
+                        updateCountdownDisplay(data.count);
+                    } else if (data.type === 'start_game') {
+                        countdownOverlay.classList.add('hidden');
+                        startGame();
+                    }
+                });
+
+                conn.on('close', () => {
+                    alert("通信が切断されました。");
+                    resetToMenu();
+                });
+            });
+        }
+
+        // フリーマッチング自動試行機能（ランダム順次接続）
+        function autoJoinFreePartyRoom() {
+            statusText.textContent = "空いている部屋を探しています...";
+            let currentRoomIdx = 0;
+            const maxRoomsToTry = 10; // 検索する最大チャネル数
+            const startTime = Date.now();
+
+            function tryNextFreeRoom() {
+                // 1分以上経過した場合は有効な部屋なしとする
+                if (Date.now() - startTime >= 60000 || currentRoomIdx >= maxRoomsToTry) {
+                    alert("有効な部屋が見つかりませんでした。");
+                    resetToMenu();
+                    return;
+                }
+
+                if (state.peer) state.peer.destroy();
+                state.peer = new Peer();
+
+                state.peer.on('open', () => {
+                    const targetCode = `FREE-${currentRoomIdx}`;
+                    currentRoomIdx++;
+
+                    const conn = state.peer.connect(`TYPING-ARENA-PARTY-${targetCode}`);
+                    let connected = false;
+
+                    const timeoutTimer = setTimeout(() => {
+                        if (!connected) {
+                            conn.close();
+                            tryNextFreeRoom(); // 接続できなかった場合は次の部屋へ
+                        }
+                    }, 2500);
+
+                    conn.on('open', () => {
+                        connected = true;
+                        clearTimeout(timeoutTimer);
+                        state.conn = conn;
+
+                        conn.send({ type: 'join_request', name: state.myNickname });
+                        document.getElementById('party-room-code-badge').textContent = `ROOM: ${targetCode}`;
+                        startPartyQueueTimer();
+                    });
+
+                    conn.on('data', (data) => {
+                        if (data.type === 'reject') {
+                            conn.close();
+                            tryNextFreeRoom(); // 拒否（満員等）された場合も次の部屋へ
+                        } else if (data.type === 'update_players') {
+                            state.partyPlayers = data.players;
+                            updatePartyQueueUI();
+                        } else if (data.type === 'start_countdown') {
+                            document.getElementById('party-match-wait-modal').classList.add('hidden');
+                            showRules();
+                        } else if (data.type === 'sync_countdown_tick') {
+                            updateCountdownDisplay(data.count);
+                        } else if (data.type === 'start_game') {
+                            countdownOverlay.classList.add('hidden');
+                            startGame();
+                        }
+                    });
+                });
+            }
+
+            tryNextFreeRoom();
+        }
+
+        function broadcastPartyPlayers() {
+            if (state.peer && state.peer.connections) {
+                Object.keys(state.peer.connections).forEach((peerId) => {
+                    state.peer.connections[peerId].forEach((conn) => {
+                        if (conn.open) {
+                            conn.send({ type: 'update_players', players: state.partyPlayers });
+                        }
+                    });
+                });
+            }
+        }
+
+        function startPartyQueueTimer() {
+            state.partyQueueTimeLeft = 90;
+            document.getElementById('party-match-wait-modal').classList.remove('hidden');
+
+            if (state.partyQueueTimer) clearInterval(state.partyQueueTimer);
+            state.partyQueueTimer = setInterval(() => {
+                state.partyQueueTimeLeft--;
+                const m = String(Math.floor(state.partyQueueTimeLeft / 60)).padStart(2, '0');
+                const s = String(state.partyQueueTimeLeft % 60).padStart(2, '0');
+                document.getElementById('party-queue-timer').textContent = `${m}:${s}`;
+
+                if (state.partyQueueTimeLeft <= 0) {
+                    clearInterval(state.partyQueueTimer);
+                    document.getElementById('party-match-wait-modal').classList.add('hidden');
+                    if (state.isHost) {
+                        setupPartyWithCPs(state.partyPlayers);
+                        broadcastSignal({ type: 'start_countdown' });
+                        showRules();
+                    }
+                }
+            }, 1000);
+        }
+
+        function updatePartyQueueUI() {
+            document.getElementById('party-count-text').textContent = `${state.partyPlayers.length}人`;
+            const listEl = document.getElementById('party-member-list');
+            listEl.innerHTML = state.partyPlayers.map((p, idx) => `
+                <div class="bg-gray-900 p-2 rounded-lg flex justify-between items-center">
+                    <span class="font-bold text-white text-xs">${p.name} ${idx === 0 ? '(ホスト)' : ''}</span>
+                </div>
+            `).join('');
+        }
+
+        function setupPartyWithCPs(existingPlayers) {
+            state.partyPlayers = [...existingPlayers];
+            let pIdx = state.partyPlayers.length + 1;
+            while (state.partyPlayers.length < MAX_PARTY_MEMBERS) {
+                state.partyPlayers.push({
+                    id: `cp-${pIdx}`, name: `CP_${pIdx}`, isCP: true, score: 100 / MAX_PARTY_MEMBERS, word: "", typedIdx: 0
+                });
+                pIdx++;
+            }
+            state.partyPlayers.forEach(p => p.score = 100 / MAX_PARTY_MEMBERS);
+        }
+
+        // --- ゲーム進行関連 ---
+        function showRules() {
+            document.getElementById('menu-screen').classList.add('hidden');
+            sRule.classList.remove('hidden');
+            const desc = document.getElementById('rule-desc-text');
+            if (state.gameMode === 'party') {
+                desc.textContent = "占有率の獲得を競うパーティモードです！";
+            } else {
+                desc.textContent = "タイピングスピードでバーを押し切った方の勝利！";
+            }
+        }
+
+        function checkStartCondition() {
+            if (state.gameMode === 'party' || state.role === 'local' || (state.isReady && state.enemyReady)) {
+                sRule.classList.add('hidden');
+                if (state.gameMode === 'party' && !state.isHost) return;
+                startCountdown();
+            }
+        }
+
+        function startCountdown() {
+            if (state.gameMode === 'party') sPartyGame.classList.remove('hidden');
+            else sGame.classList.remove('hidden');
+
+            countdownOverlay.classList.remove('hidden');
+            const counts = ["3", "2", "1", "GO!"];
+            let i = 0;
+
+            const timer = setInterval(() => {
+                if (i < counts.length) {
+                    updateCountdownDisplay(counts[i]);
+                    if (state.gameMode === 'party' && state.isHost) {
+                        broadcastSignal({ type: 'sync_countdown_tick', count: counts[i] });
+                    }
+                    i++;
+                } else {
+                    clearInterval(timer);
+                    countdownOverlay.classList.add('hidden');
+                    if (state.gameMode === 'party' && state.isHost) {
+                        broadcastSignal({ type: 'start_game' });
+                    }
+                    startGame();
+                }
+            }, 1000);
+        }
+
+        function updateCountdownDisplay(text) {
+            countdownOverlay.classList.remove('hidden');
+            countdownText.innerText = text;
+        }
+
+        function startGame() {
+            state.isPlaying = true;
+            state.score = 50;
+
+            if (state.gameMode === 'party') {
+                nextPartyWord(0);
+                startPartyCPs();
+                renderPieChart();
+            } else {
+                updateProgressBar();
+                nextWord();
+                if (state.role === 'local') {
+                    nextEnemyWord();
+                    startNPC();
+                }
+            }
+            window.addEventListener('keydown', handleKeyDown);
+        }
+
+        function handleKeyDown(e) {
+            if (!state.isPlaying || e.key.length !== 1 || !/[a-zA-Z]/.test(e.key)) return;
+
+            if (state.gameMode === 'party') {
+                const p = state.partyPlayers[0];
+                if (!p) return;
+                const targetChar = p.word[p.typedIdx].toLowerCase();
+
+                if (e.key.toLowerCase() === targetChar) {
+                    p.typedIdx++;
+                    renderPartyPlayerWord();
+                    if (p.typedIdx >= p.word.length) {
+                        adjustPartyScore(0, PARTY_DAMAGE_GAIN);
+                        nextPartyWord(0);
+                    }
+                }
+            } else {
+                const targetChar = state.word[state.typedIdx].toLowerCase();
+                if (e.key.toLowerCase() === targetChar) {
+                    state.typedIdx++;
+                    renderWord();
+
+                    if (state.typedIdx >= state.word.length) {
+                        adjustScore(3);
+                        nextWord();
+                    } else if (state.role !== 'local') {
+                        sendData({ type: 'progress', typedIdx: state.typedIdx, word: state.word });
+                    }
+                }
+            }
+        }
+
+        function adjustScore(amount) {
+            state.score = Math.min(100, Math.max(0, state.score + amount));
+            updateProgressBar();
+            if (state.role !== 'local') sendData({ type: 'score_sync', score: state.score });
+            if (state.score >= 100) triggerGameEnd('victory');
+            else if (state.score <= 0) triggerGameEnd('defeat');
+        }
+
+        function updateProgressBar() {
+            document.getElementById('player-bar').style.width = `${state.score}%`;
+            document.getElementById('enemy-bar').style.width = `${100 - state.score}%`;
+        }
+
+        function nextWord() {
+            state.word = WORD_LIST[Math.floor(Math.random() * WORD_LIST.length)];
+            state.typedIdx = 0;
+            renderWord();
+            if (state.role !== 'local') sendData({ type: 'progress', typedIdx: 0, word: state.word });
+        }
+
+        function nextEnemyWord() {
+            state.enemyWord = WORD_LIST[Math.floor(Math.random() * WORD_LIST.length)];
+            state.enemyTypedIdx = 0;
+            renderEnemyWord();
+        }
+
+        function renderWord() {
+            if(!wordDisplay) return;
+            wordDisplay.innerHTML = [...state.word].map((c, i) => {
+                return i < state.typedIdx ? `<span class="text-sky-400">${c}</span>` : `<span class="text-white/40">${c}</span>`;
+            }).join('');
+        }
+
+        function renderEnemyWord() {
+            if(!enemyWordDisplay) return;
+            enemyWordDisplay.innerHTML = [...state.enemyWord].map((c, i) => {
+                return i < state.enemyTypedIdx ? `<span class="text-red-500">${c}</span>` : `<span class="text-white/20">${c}</span>`;
+            }).join('');
+        }
+
+        function nextPartyWord(pIdx) {
+            const p = state.partyPlayers[pIdx];
+            if (!p) return;
+            p.word = WORD_LIST[Math.floor(Math.random() * WORD_LIST.length)];
+            p.typedIdx = 0;
+            if (pIdx === 0) renderPartyPlayerWord();
+        }
+
+        function renderPartyPlayerWord() {
+            const display = document.getElementById('party-word-display');
+            if (!display) return;
+            const p = state.partyPlayers[0];
+            if (!p) return;
+            display.innerHTML = [...p.word].map((c, i) => {
+                return i < p.typedIdx ? `<span class="text-sky-400">${c}</span>` : `<span class="text-white/40">${c}</span>`;
+            }).join('');
+        }
+
+        function startPartyCPs() {
+            if (state.npcInterval) clearInterval(state.npcInterval);
+            const randomCpuSpeed = Math.floor(Math.random() * (1400 - 700 + 1)) + 700;
+
+            state.npcInterval = setInterval(() => {
+                if (!state.isPlaying) return;
+                state.partyPlayers.forEach((p, idx) => {
+                    if (idx === 0 || !p.isCP) return;
+                    p.typedIdx++;
+                    if (p.typedIdx >= p.word.length) {
+                        adjustPartyScore(idx, PARTY_DAMAGE_GAIN);
+                        nextPartyWord(idx);
+                    }
+                });
+            }, randomCpuSpeed);
+        }
+
+        function adjustPartyScore(winnerIdx, gain) {
+            if (state.partyPlayers.length <= 1) {
+                renderPieChart();
+                return;
+            }
+            const stealPerPerson = gain / (state.partyPlayers.length - 1);
+            let totalStolen = 0;
+            state.partyPlayers.forEach((p, idx) => {
+                if (idx !== winnerIdx) {
+                    const actualSteal = Math.min(p.score, stealPerPerson);
+                    p.score -= actualSteal;
+                    totalStolen += actualSteal;
+                }
+            });
+            state.partyPlayers[winnerIdx].score += totalStolen;
+            renderPieChart();
+        }
+
+        function renderPieChart() {
+            const svg = document.getElementById('party-pie-svg');
+            const legend = document.getElementById('pie-legend');
+            if (!svg || !legend) return;
+
+            let cumulativePercent = 0;
+            let svgPaths = "";
+            let legendHTML = "";
+
+            state.partyPlayers.forEach((p, idx) => {
+                const percent = Math.max(0, p.score || (100 / state.partyPlayers.length));
+                const color = PLAYER_COLORS[idx % PLAYER_COLORS.length];
+
+                const [startX, startY] = getCoordinatesForPercent(cumulativePercent);
+                cumulativePercent += percent / 100;
+                const [endX, endY] = getCoordinatesForPercent(cumulativePercent);
+                const largeArcFlag = percent > 50 ? 1 : 0;
+
+                const pathData = [`M 16 16`, `L ${startX} ${startY}`, `A 16 16 0 ${largeArcFlag} 1 ${endX} ${endY}`, `Z`].join(' ');
+                svgPaths += `<path d="${pathData}" fill="${color}"></path>`;
+
+                if (idx === 0) {
+                    document.getElementById('party-p1-share').textContent = `${percent.toFixed(1)}%`;
+                    document.getElementById('party-p1-name').textContent = p.name;
+                }
+
+                legendHTML += `
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full inline-block" style="background:${color}"></span>
+                        <span class="text-[10px] text-gray-300">${p.name}: ${percent.toFixed(1)}%</span>
+                    </div>
+                `;
+            });
+
+            svg.innerHTML = svgPaths;
+            legend.innerHTML = legendHTML;
+        }
+
+        function getCoordinatesForPercent(percent) {
+            const x = 16 + 16 * Math.cos(2 * Math.PI * percent);
+            const y = 16 + 16 * Math.sin(2 * Math.PI * percent);
+            return [x, y];
+        }
+
+        function startNPC() {
+            if (state.npcInterval) clearInterval(state.npcInterval);
+            state.npcInterval = setInterval(() => {
+                if (!state.isPlaying) return;
+                state.enemyTypedIdx++;
+                renderEnemyWord();
+                if (state.enemyTypedIdx >= state.enemyWord.length) {
+                    adjustScore(-3);
+                    nextEnemyWord();
+                }
+            }, 1000);
+        }
+
+        function triggerGameEnd(res) {
+            state.isPlaying = false;
+            window.removeEventListener('keydown', handleKeyDown);
+            if (state.npcInterval) clearInterval(state.npcInterval);
+
+            const t = document.getElementById('result-title');
+            t.innerText = res === 'victory' ? "VICTORY" : "DEFEAT";
+            resultModal.classList.remove('hidden');
+        }
+
+        function selectDifficulty(diff) {
+            state.npcDifficulty = diff;
+            document.getElementById('difficulty-modal').classList.add('hidden');
+            state.enemyName = `NPC (${diff.toUpperCase()})`;
+            applyNamesUI();
+            showRules();
+        }
+
+        function applyNamesUI() {
+            document.getElementById('label-player-name').textContent = state.playerName;
+            document.getElementById('label-enemy-name').textContent = state.enemyName;
+        }
+
+        function resetToMenu() {
+            if (state.conn) { state.conn.close(); state.conn = null; }
+            if (state.peer) { state.peer.destroy(); state.peer = null; }
+            if (state.partyQueueTimer) clearInterval(state.partyQueueTimer);
+            state.isPlaying = false; state.isReady = false; state.enemyReady = false;
+            sGame.classList.add('hidden'); sPartyGame.classList.add('hidden');
+            resultModal.classList.add('hidden'); sRule.classList.add('hidden');
+            document.getElementById('difficulty-modal').classList.add('hidden');
+            document.getElementById('code-modal').classList.add('hidden');
+            document.getElementById('1v1-submodal').classList.add('hidden');
+            document.getElementById('party-submodal').classList.add('hidden');
+            document.getElementById('party-role-modal').classList.add('hidden');
+            document.getElementById('party-match-wait-modal').classList.add('hidden');
+            document.getElementById('menu-screen').classList.remove('hidden');
+            readyBtn.classList.remove('hidden'); waitingMsg.classList.add('hidden');
+            statusText.textContent = "モードを選択してください";
+        }
+
+        function broadcastSignal(msg) {
+            if (state.peer && state.peer.connections) {
+                Object.keys(state.peer.connections).forEach((peerId) => {
+                    state.peer.connections[peerId].forEach((conn) => {
+                        if (conn.open) conn.send(msg);
+                    });
+                });
+            }
+        }
+
+        function sendData(d) {
+            if (state.conn && state.conn.open) state.conn.send(d);
+        }
+    </script>
+</body>
+</html>
